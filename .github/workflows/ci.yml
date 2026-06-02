@@ -1,0 +1,159 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Tidy and verify
+        run: go mod tidy && git diff --exit-code go.mod 2>/dev/null || (echo "go.mod not tidy after go mod tidy" && exit 1)
+
+      - name: Run tests
+        run: go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  integration:
+    name: Integration (pipe)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build
+        run: go build -ldflags "-X main.version=test" -o pg_atropos
+
+      - name: Create test data
+        run: |
+          PGPASSWORD=test psql -h postgres -U postgres -d testdb -c "
+            CREATE TABLE users (id serial PRIMARY KEY, name text);
+            INSERT INTO users (name) VALUES ('alice'), ('bob');
+            CREATE FUNCTION hello() RETURNS text LANGUAGE sql AS 'SELECT ''hello''';
+          "
+
+      - name: Pipe test (stdin)
+        run: |
+          PGPASSWORD=test pg_dump -Fc -h postgres -U postgres -d testdb -f - | ./pg_atropos -f - -output ./pipe_out --no-db-path
+          test -f pipe_out/public/TABLE/users.sql || (echo "pipe: TABLE/users.sql missing" && exit 1)
+          test -f pipe_out/public/SEQUENCE/users_id_seq.sql || (echo "pipe: SEQUENCE missing" && exit 1)
+          test -f pipe_out/public/FUNCTION/hello-*.sql || (echo "pipe: FUNCTION/hello- missing" && exit 1)
+          echo "Pipe test PASSED"
+
+      - name: File mode test
+        run: |
+          PGPASSWORD=test pg_dump -Fc -h postgres -U postgres -d testdb -f /tmp/test.dump
+          ./pg_atropos -f /tmp/test.dump -output ./file_out --no-db-path
+          test -f file_out/public/TABLE/users.sql || (echo "file: TABLE/users.sql missing" && exit 1)
+          echo "File mode test PASSED"
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    strategy:
+      matrix:
+        goos: [darwin, linux]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Tidy and verify
+        run: go mod tidy && git diff --exit-code go.mod 2>/dev/null || (echo "go.mod not tidy after go mod tidy" && exit 1)
+
+      - name: Get version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      - name: Build
+        run: |
+          output="binaries/pg_atropos-${{ env.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          [ "${{ matrix.goos }}" = "windows" ] && output="${output}.exe"
+          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags "-X main.version=${{ env.VERSION }}" -o "$output"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pg_atropos-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: binaries/*
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: binaries
+
+      - name: Create checksums
+        run: |
+          cd binaries
+          for f in *; do
+            [ -f "$f" ] && sha256sum "$f" > "$f.sha256"
+          done
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: binaries/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

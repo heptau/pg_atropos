@@ -1,0 +1,34 @@
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable:
+    - gofmt
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - gosimple
+    - ineffassign
+    - typecheck
+
+linters-settings:
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment
+
+issues:
+  exclude-dirs:
+    - archive
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude:
+    - G501  # crypto/md5: used only for filename hashing, not security
+    - G401  # md5.Sum: same as above
+    - G204  # Subprocess with variable: pg_dump/pg_restore arguments are intentional
+    - G302  # File mode 0644: SQL files are shared, 0600 would be too restrictive
+    - G304  # File inclusion via variable: intentional file I/O

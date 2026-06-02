@@ -1,0 +1,22 @@
+pg_atropos
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Binaries
+*.exe
+binaries/
+
+# Testdata
+testdata/*.sql
+!testdata/.gitkeep
+
+# Test binaries
+*.test
+
+# Coverage
+coverage.out
+*.out
