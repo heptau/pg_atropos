@@ -139,7 +139,7 @@ release: test check-gh
 		echo "end"; \
 	} > "$$formula"; \
 	echo "Formula written to $$formula"; \
-	cd "$(TAP_DIR)" && git add "Formula/$(PKG).rb" && git commit -m "Brew formula update for $(PKG) version v$$new" && git push origin main; \
+	cd "$(TAP_DIR)" && git pull --rebase origin main && git add "Formula/$(PKG).rb" && git commit -m "Brew formula update for $(PKG) version v$$new" && git push origin main; \
 	echo "=========================================================="; \
 	echo "Release v$$new complete!"; \
 	echo "=========================================================="
