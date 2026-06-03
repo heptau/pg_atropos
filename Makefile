@@ -95,7 +95,7 @@ release: test check-gh
 		echo "  Created $$archive"; \
 	done; \
 	echo "Creating GitHub release v$$new..."; \
-	gh release create "v$$new" dist/$(PKG)-$$new-*.tar.gz dist/$(PKG)-$$new-*.sha256 --title "v$$new" --notes "Release v$$new"; \
+	gh release create "v$$new" dist/$(PKG)-$$new-*.tar.gz dist/$(PKG)-$$new-*.sha256 --title "v$$new" --generate-notes; \
 	echo "Generating Homebrew formula..."; \
 	sha_darwin_arm64=$$(cat dist/$(PKG)-$$new-darwin-arm64.tar.gz.sha256); \
 	sha_darwin_amd64=$$(cat dist/$(PKG)-$$new-darwin-amd64.tar.gz.sha256); \
