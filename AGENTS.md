@@ -81,6 +81,22 @@ Tested on ~150 objects / 2226 lines SQL output:
 | **pg_atropos (Go)** | **0.044s** | **1×** |
 | pgdump_splitter (Go) | 0.109s | 2.5× slower |
 
+## Commit Conventions
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) for commit messages:
+
+```
+feat: add new feature
+fix: fix a bug
+docs: update documentation
+refactor: restructure code
+test: add or fix tests
+ci: CI/CD changes
+chore: maintenance tasks
+```
+
+These are used by `gh release --generate-notes` to categorize commits in release notes.
+
 ## Key Design Decisions
 
 - Uses `pg_restore -f -` pipe instead of parsing text dumps directly
