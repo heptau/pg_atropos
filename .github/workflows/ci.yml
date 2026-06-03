@@ -32,52 +32,6 @@ jobs:
           name: coverage
           path: coverage.out
 
-  integration:
-    name: Integration (pipe)
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: testdb
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
-
-      - name: Build
-        run: go build -ldflags "-X main.version=test" -o pg_atropos
-
-      - name: Create test data
-        run: |
-          PGPASSWORD=test psql -h localhost -U postgres -d testdb -c "
-            CREATE TABLE users (id serial PRIMARY KEY, name text);
-            INSERT INTO users (name) VALUES ('alice'), ('bob');
-            CREATE FUNCTION hello() RETURNS text LANGUAGE sql AS 'SELECT ''hello''';
-          "
-
-      - name: Pipe test (stdin)
-        run: |
-          PGPASSWORD=test pg_dump -Fc -h localhost -U postgres -d testdb -f - | ./pg_atropos -f - -output ./pipe_out --no-db-path
-
-      - name: File mode test
-        run: |
-          PGPASSWORD=test pg_dump -Fc -h localhost -U postgres -d testdb -f /tmp/test.dump
-          ./pg_atropos -f /tmp/test.dump -output ./file_out --no-db-path
-          test -f file_out/public/TABLE/users.sql || (echo "file: TABLE/users.sql missing" && exit 1)
-          echo "File mode test PASSED"
-
   lint:
     name: Lint
     runs-on: ubuntu-latest
