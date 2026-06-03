@@ -19,7 +19,22 @@ make test       # Run tests
 make coverage   # Run tests with coverage
 make lint       # Run linters (golangci-lint)
 make clean      # Remove built artifacts
+make release    # Version prompt → build all → gh release → homebrew formula
 ```
+
+## Releasing
+
+`make release` does all of the following:
+
+1. **Prompts** for new version (or keeps current)
+2. **Updates** `VERSION` + `main.go` version string, commits and tags (`v<ver>`)
+3. **Builds** binaries for all 4 platforms (`make build-all`)
+4. **Archives** each binary as `dist/pg_atropos-<ver>-<os>-<arch>.tar.gz`
+5. **Publishes** GitHub release via `gh release create`
+6. **Generates** Homebrew formula in `../homebrew-tap/Formula/pg_atropos.rb`
+7. **Pushes** the formula to `heptau/tap`
+
+**Prerequisite:** `gh` CLI (`brew install gh`)
 
 ## Flags
 
