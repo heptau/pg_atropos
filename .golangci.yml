@@ -3,7 +3,7 @@ run:
   modules-download-mode: readonly
 
 linters:
-  default: none
+  disable-all: true
   enable:
     - gofmt
     - govet
