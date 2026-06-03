@@ -5,7 +5,7 @@ BIN_DIR := binaries
 PKG := pg_atropos
 TAP_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))../homebrew-tap
 
-PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64
+PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 
 help:
 	@echo "pg_atropos v$(VERSION) - PostgreSQL dump file splitter"
@@ -38,6 +38,7 @@ build-all:
 		GOOS=$${platform%/*}; \
 		GOARCH=$${platform#*/}; \
 		output="$(BIN_DIR)/$(PKG)-$(VERSION)-$$GOOS-$$GOARCH"; \
+		[ "$$GOOS" = "windows" ] && output="$$output.exe"; \
 		echo "Building for $$GOOS/$$GOARCH..."; \
 		CGO_ENABLED=0 GOOS=$$GOOS GOARCH=$$GOARCH go build -ldflags "-X main.version=$(VERSION)" -o "$$output"; \
 	done
@@ -86,6 +87,7 @@ release: test check-gh
 		goos=$${platform%/*}; \
 		goarch=$${platform#*/}; \
 		binary="$(BIN_DIR)/$(PKG)-$$new-$$goos-$$goarch"; \
+		[ "$$goos" = "windows" ] && binary="$$binary.exe"; \
 		archive="dist/$(PKG)-$$new-$$goos-$$goarch.tar.gz"; \
 		tmpdir=$$(mktemp -d); \
 		cp "$$binary" "$$tmpdir/$(PKG)"; \

@@ -100,7 +100,7 @@ jobs:
     needs: [test, lint]
     strategy:
       matrix:
-        goos: [darwin, linux]
+        goos: [darwin, linux, windows]
         goarch: [amd64, arm64]
     steps:
       - uses: actions/checkout@v4
