@@ -9,6 +9,7 @@ pg_atropos
 # Binaries
 *.exe
 binaries/
+dist/
 
 # Testdata
 testdata/*.sql
