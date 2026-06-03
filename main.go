@@ -211,6 +211,7 @@ func parseFlags() *Config {
 	fs.StringVar(&cfg.DBName, "db", "", "Database name to dump")
 	fs.StringVar(&cfg.Conn, "conn", "", "PostgreSQL connection string")
 	fs.StringVar(&cfg.DumpFile, "file", "", "Custom-format dump file (\"-\" for stdin)")
+	fs.StringVar(&cfg.DumpFile, "f", "", "Shorthand for --file (e.g. -f - for stdin)")
 	fs.StringVar(&cfg.OutputDir, "output", "./output", "Output directory")
 	fs.StringVar(&cfg.Mode, "mode", "origin", "Output mode: origin|custom")
 	fs.BoolVar(&cfg.Clean, "clean", false, "Clean output directory before processing")

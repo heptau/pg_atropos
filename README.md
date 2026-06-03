@@ -94,7 +94,7 @@ docker run --rm -v $(pwd)/dump.pgdump:/dump.pgdump pg_atropos -f /dump.pgdump
 |------|---------|-------------|
 | `--db` | `""` | Database name to dump |
 | `--conn` | `""` | PostgreSQL connection string |
-| `--file` | `""` | Custom-format dump file (`"-"` for stdin) |
+| `--file`, `-f` | `""` | Custom-format dump file (`"-"` for stdin) |
 | `--output` | `./output` | Output directory |
 | `--mode` | `origin` | Output mode: `origin` \| `custom` |
 | `--clean` | `false` | Clean output directory before processing |
