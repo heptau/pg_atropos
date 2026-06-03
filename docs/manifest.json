@@ -1,0 +1,16 @@
+{
+	"name": "pg_atropos",
+	"short_name": "pg_atropos",
+	"description": "Split PostgreSQL custom-format dumps into individual files organized for Git versioning.",
+	"start_url": "/",
+	"display": "standalone",
+	"background_color": "#1C1814",
+	"theme_color": "#D4A44B",
+	"icons": [
+		{
+			"src": "/favicon.svg",
+			"sizes": "any",
+			"type": "image/svg+xml"
+		}
+	]
+}

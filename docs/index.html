@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>pg_atropos – Cut PostgreSQL dumps into individual files for Git versioning.</title>
+	<meta name="description" content="pg_atropos splits PostgreSQL custom-format dumps into individual files organized for Git versioning. Uses pg_restore for reliable parsing." />
+	<meta name="application-name" content="pg_atropos" />
+	<meta name="author" content="Zbyněk Vanžura" />
+	<meta name="keywords" content="pg_atropos,PostgreSQL,pg_dump,git versioning,database" />
+	<meta name="robots" content="index, follow" />
+	<meta name="mobile-web-app-capable" content="yes" />
+	<meta name="apple-mobile-web-app-title" content="pg_atropos" />
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+	<meta name="theme-color" content="#D4A44B" />
+
+	<meta property="og:image" content="https://pg_atropos.80.cz/favicon.svg" />
+	<meta property="og:url" content="https://pg_atropos.80.cz/" />
+	<meta property="og:type" content="website" />
+	<meta property="og:title" content="pg_atropos - Cut PostgreSQL dumps into individual files for Git versioning." />
+	<meta property="og:description" content="Split PostgreSQL custom-format dumps into individual files organized for Git versioning." />
+
+	<meta name="twitter:card" content="summary" />
+	<meta name="twitter:title" content="pg_atropos - Cut PostgreSQL dumps into individual files for Git versioning." />
+	<meta name="twitter:description" content="Split PostgreSQL custom-format dumps into individual files organized for Git versioning." />
+	<meta name="twitter:image" content="https://pg_atropos.80.cz/favicon.svg" />
+
+	<link rel="canonical" href="https://pg_atropos.80.cz/" />
+
+	<script type="application/ld+json">
+		{
+			"@context": "https://schema.org",
+			"@type": "SoftwareApplication",
+			"name": "pg_atropos",
+			"operatingSystem": "Linux, macOS",
+			"applicationCategory": "DeveloperApplication",
+			"description": "Split PostgreSQL custom-format dumps into individual files organized for Git versioning.",
+			"softwareVersion": "1.0.0",
+			"offers": {
+				"@type": "Offer",
+				"price": "0",
+				"priceCurrency": "USD"
+			},
+			"author": {
+				"@type": "Person",
+				"name": "Zbyněk Vanžura"
+			}
+		}
+	</script>
+
+	<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+	<link rel="apple-touch-icon" href="favicon.svg" sizes="any" type="image/svg+xml" />
+	<link rel="manifest" href="manifest.json" />
+	<link rel="stylesheet" href="style.css" />
+
+	<script>
+		(function(){try{
+			var t=localStorage.getItem('pg_atropos_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);
+			var l=localStorage.getItem('pg_atropos_lang');if(!l||l==='auto'){var n=navigator.languages||[navigator.language];for(var i=0;i<n.length;i++){var s=n[i].split('-')[0].toLowerCase();if(['cs','en','es','fr','de','it','pt','el','uk','pl'].indexOf(s)!==-1){l=s;break;}}}
+			if(!l||l==='auto')l='en';document.documentElement.setAttribute('lang',l);
+		}catch(e){}})();
+	</script>
+</head>
+<body>
+	<div class="container">
+		<header>
+			<a href="/" class="logo" aria-label="pg_atropos home">
+				<img src="favicon.svg" width="28" height="28" alt="" class="logo-icon" />
+				<span>pg_atropos</span>
+			</a>
+			<div class="nav-links">
+				<div class="lang-dropdown">
+					<button class="lang-trigger" aria-label="Change language" aria-haspopup="true" aria-expanded="false">
+						<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<circle cx="12" cy="12" r="10"/>
+							<line x1="2" y1="12" x2="22" y2="12"/>
+							<path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+						</svg>
+					</button>
+					<div class="dropdown-menu lang-menu">
+						<button class="dropdown-option lang-option" data-lang-value="auto">
+							<span class="option-label">🌐 Auto</span>
+						</button>
+						<button class="dropdown-option lang-option" data-lang-value="cs">
+							<span class="option-label">🇨🇿 Čeština</span>
+						</button>
+						<button class="dropdown-option lang-option" data-lang-value="de">
+							<span class="option-label">🇩🇪 Deutsch</span>
+						</button>
+						<button class="dropdown-option lang-option" data-lang-value="el">
+							<span class="option-label">🇬🇷 Ελληνικά</span>
+						</button>
+						<button class="dropdown-option lang-option" data-lang-value="en">
+							<span class="option-label">🇬🇧 English</span>
+						</button>
+						<button class="dropdown-option lang-option" data-lang-value="es">
+							<span class="option-label">🇪🇸 Español</span>
+						</button>
+						<button class="dropdown-option lang-option" data-lang-value="fr">
+							<span class="option-label">🇫🇷 Français</span>
+						</button>
+						<button class="dropdown-option lang-option" data-lang-value="it">
+							<span class="option-label">🇮🇹 Italiano</span>
+						</button>
+						<button class="dropdown-option lang-option" data-lang-value="pl">
+							<span class="option-label">🇵🇱 Polski</span>
+						</button>
+						<button class="dropdown-option lang-option" data-lang-value="pt">
+							<span class="option-label">🇵🇹 Português</span>
+						</button>
+						<button class="dropdown-option lang-option" data-lang-value="uk">
+							<span class="option-label">🇺🇦 Українська</span>
+						</button>
+					</div>
+				</div>
+				<div class="theme-dropdown">
+					<button class="theme-trigger" aria-label="Change theme" aria-haspopup="true" aria-expanded="false">
+						<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+							<path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm0 18V4c4.42 0 8 3.58 8 8s-3.58 8-8 8z"/>
+						</svg>
+					</button>
+					<div class="dropdown-menu theme-menu">
+						<button class="dropdown-option theme-option" data-theme-value="auto">
+							<span class="option-label" data-t="theme.auto">🖥️ Auto</span>
+						</button>
+						<button class="dropdown-option theme-option" data-theme-value="light">
+							<span class="option-label" data-t="theme.light">☀️ Light</span>
+						</button>
+						<button class="dropdown-option theme-option" data-theme-value="dark">
+							<span class="option-label" data-t="theme.dark">🌙 Dark</span>
+						</button>
+					</div>
+				</div>
+				<a href="https://github.com/heptau/pg_atropos" target="_blank" rel="noopener noreferrer" class="nav-link gh-link" aria-label="GitHub" data-t="header.github">
+					<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M12 .5C5.73.5.5 5.74.5 12.02c0 5.1 3.29 9.42 7.86 10.95.57.1.78-.25.78-.55v-2.1c-3.2.7-3.87-1.37-3.87-1.37-.53-1.35-1.3-1.7-1.3-1.7-1.06-.72.08-.71.08-.71 1.17.08 1.79 1.2 1.79 1.2 1.04 1.78 2.73 1.27 3.4.97.1-.75.4-1.27.72-1.56-2.55-.29-5.23-1.28-5.23-5.7.0-1.26.45-2.29 1.19-3.1-.12-.3-.52-1.5.11-3.13.0.0.97-.31 3.18 1.18a11 11 0 015.79.0c2.2-1.49 3.18-1.18 3.18-1.18.63 1.63.23 2.83.11 3.13.74.81 1.19 1.84 1.19 3.1.0 4.43-2.69 5.41-5.25 5.69.41.36.78 1.06.78 2.13v3.16c0 .3.2.65.79.54 4.56-1.53 7.85-5.85 7.85-10.94C23.5 5.74 18.27.5 12 .5z"/></svg>
+				</a>
+			</div>
+		</header>
+
+		<div class="thread-divider">
+			<svg viewBox="0 0 1200 24" preserveAspectRatio="none" class="thread-svg" aria-hidden="true">
+				<path d="M0 12 Q30 4 60 12 Q90 20 120 12 Q150 4 180 12 Q210 20 240 12 Q270 4 300 12 Q330 20 360 12 Q390 4 420 12 Q450 20 480 12 Q510 4 540 12 Q570 20 600 12 Q630 4 660 12 Q690 20 720 12 Q750 4 780 12 Q810 20 840 12 Q870 4 900 12 Q930 20 960 12 Q990 4 1020 12 Q1050 20 1080 12 Q1110 4 1140 12 Q1170 20 1200 12" fill="none" stroke-width="1.5"/>
+			</svg>
+		</div>
+
+		<main>
+			<section class="hero">
+				<div class="hero-cut">
+					<svg viewBox="0 0 240 48" class="cut-svg" aria-hidden="true">
+						<path d="M0 24 L20 4 L40 24 L60 4 L80 24 L100 4 L120 24 L140 4 L160 24 L180 4 L200 24 L220 4 L240 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+					</svg>
+				</div>
+				<div class="badge" data-t="hero.badge">✂ PostgreSQL → Git Structure</div>
+				<h1 class="hero-title"><span class="title-accent">pg_atropos</span></h1>
+				<p class="hero-sub" data-t="hero.subtitle">Snip your dumps into manageable threads</p>
+				<p class="hero-desc" data-t="hero.description">
+					Split PostgreSQL custom-format dumps into individual files — each table, function, index, and role in its own file. Clean diffs, clear history, no more merge conflicts.
+				</p>
+				<div class="cta-group">
+					<a href="https://github.com/heptau/pg_atropos" target="_blank" rel="noopener noreferrer" class="btn btn-primary" data-t="hero.github_btn">View on GitHub</a>
+					<a href="#installation" class="btn btn-secondary" data-t="hero.install_btn">Install ↓</a>
+				</div>
+
+				<div class="terminal-block">
+					<div class="terminal-dots">
+						<span class="tdot" style="background:#ff5f56"></span>
+						<span class="tdot" style="background:#febc2e"></span>
+						<span class="tdot" style="background:#27c840"></span>
+					</div>
+					<div class="terminal-content">
+						<p class="comment" data-t="terminal.comment"># Split a dump into individual files</p>
+						<p><span class="prompt">$</span> pg_atropos <span class="flag">-f</span> dump.pgdump <span class="flag">-o</span> <span class="val">./structure</span></p>
+						<p class="comment" data-t="terminal.comment2"># Pipe from live database (no temp file)</p>
+						<p><span class="prompt">$</span> pg_dump <span class="flag">-Fc</span> mydb <span class="flag">-f</span> <span class="val">-</span> <span class="punct">|</span> pg_atropos <span class="flag">-f</span> <span class="val">-</span> <span class="flag">-o</span> <span class="val">./structure</span></p>
+						<p class="success" data-t="terminal.success">✓ Extracted 24 objects to ./structure<span class="cursor">▌</span></p>
+					</div>
+				</div>
+			</section>
+
+			<div class="cut-separator" aria-hidden="true">
+				<svg viewBox="0 0 200 16" class="cut-sep-svg">
+					<path d="M0 8 L25 0 L50 8 L75 0 L100 8 L125 0 L150 8 L175 0 L200 8" fill="none" stroke-width="1.5"/>
+				</svg>
+			</div>
+
+			<section class="card" id="about">
+				<div class="card-thread"></div>
+				<h2 data-t="about.title">What is pg_atropos?</h2>
+				<p data-t="about.content">
+					pg_atropos is a Go command-line tool that splits PostgreSQL <code>pg_dump -Fc</code> (custom-format) dumps into individual files organized for Git versioning. Instead of wrestling with a single giant SQL file, each database object gets its own file — tables in <code>TABLE/</code>, functions in <code>FUNCTION/</code>, roles in <code>ROLE/</code>, and so on.
+				</p>
+				<p class="mt" data-t="about.how">
+					Rather than parsing raw SQL text with brittle regex, it pipes through <code>pg_restore -f -</code> which reliably emits clean <code>-- Name: ...; Type: ...</code> headers. The result: simpler, faster, and far more robust parsing.
+				</p>
+			</section>
+
+			<div class="cut-separator" aria-hidden="true">
+				<svg viewBox="0 0 200 16" class="cut-sep-svg">
+					<path d="M0 8 L25 0 L50 8 L75 0 L100 8 L125 0 L150 8 L175 0 L200 8" fill="none" stroke-width="1.5"/>
+				</svg>
+			</div>
+
+			<section class="card" id="why">
+				<div class="card-thread"></div>
+				<h2 data-t="why.title">Why split your dump?</h2>
+				<div class="feature-grid">
+					<div class="feature-item">
+						<span class="feature-icon">✂</span>
+						<div>
+							<h3 data-t="why.conflicts_title">Minimal conflicts</h3>
+							<p data-t="why.conflicts_desc">Two people can change different tables without stepping on each other. No more "merge conflict in 500-line SQL file."</p>
+						</div>
+					</div>
+					<div class="feature-item">
+						<span class="feature-icon">🔍</span>
+						<div>
+							<h3 data-t="why.review_title">Clear code review</h3>
+							<p data-t="why.review_desc">A diff shows exactly the changed object, not 500 lines of dump header. Review becomes a pleasure.</p>
+						</div>
+					</div>
+					<div class="feature-item">
+						<span class="feature-icon">📜</span>
+						<div>
+							<h3 data-t="why.history_title">Readable history</h3>
+							<p data-t="why.history_desc"><code>git log -- TABLE/users.sql</code> shows every change to that specific table. Full audit trail per object.</p>
+						</div>
+					</div>
+					<div class="feature-item">
+						<span class="feature-icon">🚀</span>
+						<div>
+							<h3 data-t="why.cicd_title">CI/CD friendly</h3>
+							<p data-t="why.cicd_desc">Deploy only the changed object, not the entire dump. Faster pipelines, less risk.</p>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<div class="cut-separator" aria-hidden="true">
+				<svg viewBox="0 0 200 16" class="cut-sep-svg">
+					<path d="M0 8 L25 0 L50 8 L75 0 L100 8 L125 0 L150 8 L175 0 L200 8" fill="none" stroke-width="1.5"/>
+				</svg>
+			</div>
+
+			<section class="card" id="installation">
+				<div class="card-thread"></div>
+				<h2 data-t="install.title">Installation</h2>
+				<div class="install-grid">
+					<div class="install-block">
+						<div class="install-header">
+							<span class="install-icon">🍺</span>
+							<h3 data-t="install.brew_title">Homebrew (recommended)</h3>
+						</div>
+						<p data-t="install.brew_desc">The easiest way to install on macOS and Linux.</p>
+						<div class="code-inline">
+							<div class="code-inner">
+								<p><span class="prompt">$</span> brew install <span class="val">heptau/tap/pg-atropos</span></p>
+							</div>
+							<button class="copy-mini" aria-label="Copy command" data-copy="brew install heptau/tap/pg-atropos">
+								<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+							</button>
+						</div>
+					</div>
+					<div class="install-block">
+						<div class="install-header">
+							<span class="install-icon">⚙</span>
+							<h3 data-t="install.source_title">From source</h3>
+						</div>
+						<p data-t="install.source_desc">Requires Go 1.23+.</p>
+						<div class="code-inline">
+							<div class="code-inner">
+								<p><span class="prompt">$</span> git clone https://github.com/heptau/pg_atropos.git</p>
+								<p><span class="prompt">$</span> <span class="punct">cd</span> pg_atropos <span class="punct">&&</span> make build</p>
+							</div>
+							<button class="copy-mini" aria-label="Copy command" data-copy="git clone https://github.com/heptau/pg_atropos.git\ncd pg_atropos && make build">
+								<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+							</button>
+						</div>
+					</div>
+	
+				</div>
+				<p class="note" data-t="install.note">* Requires <code>pg_restore</code> (from PostgreSQL client tools) in your PATH.</p>
+			</section>
+
+			<div class="cut-separator" aria-hidden="true">
+				<svg viewBox="0 0 200 16" class="cut-sep-svg">
+					<path d="M0 8 L25 0 L50 8 L75 0 L100 8 L125 0 L150 8 L175 0 L200 8" fill="none" stroke-width="1.5"/>
+				</svg>
+			</div>
+
+			<section class="card" id="usage">
+				<div class="card-thread"></div>
+				<h2 data-t="usage.title">Usage &amp; Flags</h2>
+				<p data-t="usage.intro">pg_atropos works from a dump file, a live database, or stdin pipe. Here are all supported flags:</p>
+				<div class="table-scroll">
+					<table>
+						<thead>
+							<tr>
+								<th data-t="table.flag">Flag</th>
+								<th data-t="table.default">Default</th>
+								<th data-t="table.desc">Description</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr><td><code>--db</code></td><td><code>""</code></td><td data-t="flags.db">Database name to dump</td></tr>
+							<tr><td><code>--conn</code></td><td><code>""</code></td><td data-t="flags.conn">PostgreSQL connection string</td></tr>
+							<tr><td><code>--file</code></td><td><code>""</code></td><td data-t="flags.file">Custom-format dump file (<code>"-"</code> for stdin)</td></tr>
+							<tr><td><code>--output</code></td><td><code>./output</code></td><td data-t="flags.output">Output directory</td></tr>
+							<tr><td><code>--mode</code></td><td><code>origin</code></td><td data-t="flags.mode">Output mode: <code>origin</code> | <code>custom</code></td></tr>
+							<tr><td><code>--clean</code></td><td><code>false</code></td><td data-t="flags.clean">Clean output directory before processing</td></tr>
+							<tr><td><code>--no-db-path</code></td><td><code>false</code></td><td data-t="flags.nodbpath">Don't include database name in output path</td></tr>
+							<tr><td><code>--blacklist-db</code></td><td><code>^(template|postgres)</code></td><td data-t="flags.blacklist">Skip databases matching pattern</td></tr>
+							<tr><td><code>--whitelist-db</code></td><td><code>""</code></td><td data-t="flags.whitelist">Only include databases matching pattern</td></tr>
+							<tr><td><code>--exclude-obj</code></td><td><code>""</code></td><td data-t="flags.exclude">Exclude object types matching pattern</td></tr>
+							<tr><td><code>--acl-files</code></td><td><code>false</code></td><td data-t="flags.acl">Save ACLs to separate <code>.acl.sql</code> files</td></tr>
+							<tr><td><code>--move-roles</code></td><td><code>false</code></td><td data-t="flags.moveroles">Move role files under database directory</td></tr>
+							<tr><td><code>--dry-run</code></td><td><code>false</code></td><td data-t="flags.dryrun">Print what would be extracted without writing</td></tr>
+							<tr><td><code>--quiet</code></td><td><code>false</code></td><td data-t="flags.quiet">Suppress informational output</td></tr>
+							<tr><td><code>--version</code></td><td>—</td><td data-t="flags.version">Print version and exit</td></tr>
+						</tbody>
+					</table>
+				</div>
+
+				<h3 class="section-sub" data-t="usage.examples_title">Examples</h3>
+				<div class="examples">
+					<div class="code-inline">
+						<div class="code-inner">
+							<p class="comment" data-t="usage.ex1_comment"># From a custom-format dump file</p>
+							<p><span class="prompt">$</span> pg_atropos <span class="flag">-f</span> dump.pgdump <span class="flag">-o</span> <span class="val">./structure</span></p>
+						</div>
+						<button class="copy-mini" aria-label="Copy command" data-copy="pg_atropos -f dump.pgdump -o ./structure">
+							<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+						</button>
+					</div>
+					<div class="code-inline">
+						<div class="code-inner">
+							<p class="comment" data-t="usage.ex2_comment"># From a live database (auto-dump via pg_dump)</p>
+							<p><span class="prompt">$</span> pg_atropos <span class="flag">-d</span> <span class="val">mydb</span> <span class="flag">-o</span> <span class="val">./structure</span></p>
+						</div>
+						<button class="copy-mini" aria-label="Copy command" data-copy="pg_atropos -d mydb -o ./structure">
+							<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+						</button>
+					</div>
+					<div class="code-inline">
+						<div class="code-inner">
+							<p class="comment" data-t="usage.ex3_comment"># Custom mode (lowercase directories for CI)</p>
+							<p><span class="prompt">$</span> pg_atropos <span class="flag">-f</span> dump.pgdump <span class="flag">-o</span> <span class="val">./structure</span> <span class="flag">-mode</span> <span class="val">custom</span></p>
+						</div>
+						<button class="copy-mini" aria-label="Copy command" data-copy="pg_atropos -f dump.pgdump -o ./structure -mode custom">
+							<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+						</button>
+					</div>
+				</div>
+			</section>
+
+			<div class="cut-separator" aria-hidden="true">
+				<svg viewBox="0 0 200 16" class="cut-sep-svg">
+					<path d="M0 8 L25 0 L50 8 L75 0 L100 8 L125 0 L150 8 L175 0 L200 8" fill="none" stroke-width="1.5"/>
+				</svg>
+			</div>
+
+			<section class="card" id="modes">
+				<div class="card-thread"></div>
+				<h2 data-t="modes.title">Modes</h2>
+				<div class="modes-grid">
+					<div class="mode-card">
+						<h3 data-t="modes.origin_title">origin (default)</h3>
+						<p data-t="modes.origin_desc">Mirrors the dump structure exactly — each object type gets its own directory (<code>TABLE/</code>, <code>FUNCTION/</code>, <code>INDEX/</code>, …). Ideal for inspection and manual browsing.</p>
+					</div>
+					<div class="mode-card">
+						<h3 data-t="modes.custom_title">custom</h3>
+						<p data-t="modes.custom_desc">Lowercase directories (<code>table/</code>, <code>function/</code>, …). Better suited for CI / automation workflows. Note: INDEX/CONSTRAINT/TRIGGER merging into table files is not supported (pg_restore headers lack parent table name).</p>
+					</div>
+				</div>
+			</section>
+
+			<div class="cut-separator" aria-hidden="true">
+				<svg viewBox="0 0 200 16" class="cut-sep-svg">
+					<path d="M0 8 L25 0 L50 8 L75 0 L100 8 L125 0 L150 8 L175 0 L200 8" fill="none" stroke-width="1.5"/>
+				</svg>
+			</div>
+
+			<section class="card" id="name">
+				<div class="card-thread"></div>
+				<h2 data-t="name.title">The Name</h2>
+				<p data-t="name.content">
+					In Greek mythology, the three Moirai (Fates) spun the thread of life, measured it, and — finally — <strong>Atropos</strong> (the Inevitable) cut it with her shears. pg_atropos does the same: it takes a giant <code>pg_dump</code> file and snips it into small, manageable threads (files) ready for Git.
+				</p>
+			</section>
+
+			<div class="cut-separator" aria-hidden="true">
+				<svg viewBox="0 0 200 16" class="cut-sep-svg">
+					<path d="M0 8 L25 0 L50 8 L75 0 L100 8 L125 0 L150 8 L175 0 L200 8" fill="none" stroke-width="1.5"/>
+				</svg>
+			</div>
+
+			<section class="card" id="perf">
+				<div class="card-thread"></div>
+				<h2 data-t="perf.title">Performance</h2>
+				<p data-t="perf.content">Tested on ~150 objects / 2226 lines of SQL output:</p>
+				<div class="table-scroll perf-table">
+					<table>
+						<thead>
+							<tr><th data-t="table.version">Version</th><th data-t="table.time">Avg Time</th><th data-t="table.vs">vs pg_atropos</th></tr>
+						</thead>
+						<tbody>
+							<tr><td><strong>pg_atropos (Go)</strong></td><td><strong>0.044s</strong></td><td><strong>1×</strong></td></tr>
+							<tr><td>pgdump_splitter (Go)</td><td>0.109s</td><td>2.5× slower</td></tr>
+						</tbody>
+					</table>
+				</div>
+			</section>
+
+		</main>
+
+		<footer>
+			<div class="footer-thread">
+				<svg viewBox="0 0 1200 16" preserveAspectRatio="none" class="thread-svg" aria-hidden="true">
+					<path d="M0 8 Q30 2 60 8 Q90 14 120 8 Q150 2 180 8 Q210 14 240 8 Q270 2 300 8 Q330 14 360 8 Q390 2 420 8 Q450 14 480 8 Q510 2 540 8 Q570 14 600 8 Q630 2 660 8 Q690 14 720 8 Q750 2 780 8 Q810 14 840 8 Q870 2 900 8 Q930 14 960 8 Q990 2 1020 8 Q1050 14 1080 8 Q1110 2 1140 8 Q1170 14 1200 8" fill="none" stroke-width="1"/>
+				</svg>
+			</div>
+			<div class="footer-inner">
+				<div class="footer-copy">
+					© 2026 Zbyněk Vanžura
+				</div>
+				<div class="footer-links">
+					<a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener noreferrer" class="footer-link" data-t="footer.license">MIT License</a>
+					<a href="https://github.com/heptau/pg_atropos" target="_blank" rel="noopener noreferrer" class="footer-link gh-link">
+						<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M12 .5C5.73.5.5 5.74.5 12.02c0 5.1 3.29 9.42 7.86 10.95.57.1.78-.25.78-.55v-2.1c-3.2.7-3.87-1.37-3.87-1.37-.53-1.35-1.3-1.7-1.3-1.7-1.06-.72.08-.71.08-.71 1.17.08 1.79 1.2 1.79 1.2 1.04 1.78 2.73 1.27 3.4.97.1-.75.4-1.27.72-1.56-2.55-.29-5.23-1.28-5.23-5.7.0-1.26.45-2.29 1.19-3.1-.12-.3-.52-1.5.11-3.13.0.0.97-.31 3.18 1.18a11 11 0 015.79.0c2.2-1.49 3.18-1.18 3.18-1.18.63 1.63.23 2.83.11 3.13.74.81 1.19 1.84 1.19 3.1.0 4.43-2.69 5.41-5.25 5.69.41.36.78 1.06.78 2.13v3.16c0 .3.2.65.79.54 4.56-1.53 7.85-5.85 7.85-10.94C23.5 5.74 18.27.5 12 .5z"/></svg>
+						GitHub
+					</a>
+				</div>
+			</div>
+		</footer>
+	</div>
+
+	<script src="script.js"></script>
+</body>
+</html>
