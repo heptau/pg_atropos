@@ -31,7 +31,7 @@ make release    # Version prompt → build all → gh release → homebrew formu
 3. **Builds** binaries for all 4 platforms (`make build-all`)
 4. **Archives** each binary as `dist/pg_atropos-<ver>-<os>-<arch>.tar.gz`
 5. **Publishes** GitHub release via `gh release create`
-6. **Generates** Homebrew formula in `../homebrew-tap/Formula/pg_atropos.rb`
+6. **Generates** Homebrew formula in `../homebrew-tap/Formula/pg-atropos.rb`
 7. **Pushes** the formula to `heptau/tap`
 
 **Prerequisite:** `gh` CLI (`brew install gh`)

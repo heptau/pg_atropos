@@ -3,6 +3,7 @@
 VERSION := $(shell cat VERSION 2>/dev/null || echo "0.0.0")
 BIN_DIR := binaries
 PKG := pg_atropos
+FORMULA_NAME := pg-atropos
 TAP_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))../homebrew-tap
 
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
@@ -103,7 +104,7 @@ release: test check-gh
 	sha_darwin_amd64=$$(cat dist/$(PKG)-$$new-darwin-amd64.tar.gz.sha256); \
 	sha_linux_arm64=$$(cat dist/$(PKG)-$$new-linux-arm64.tar.gz.sha256); \
 	sha_linux_amd64=$$(cat dist/$(PKG)-$$new-linux-amd64.tar.gz.sha256); \
-	formula="$(TAP_DIR)/Formula/$(PKG).rb"; \
+	formula="$(TAP_DIR)/Formula/$(FORMULA_NAME).rb"; \
 	{ \
 		echo "class PgAtropos < Formula"; \
 		echo "  desc \"PostgreSQL custom-format dump splitter for GIT\""; \
@@ -141,7 +142,7 @@ release: test check-gh
 		echo "end"; \
 	} > "$$formula"; \
 	echo "Formula written to $$formula"; \
-	cd "$(TAP_DIR)" && git pull --rebase origin main && git add "Formula/$(PKG).rb" && git commit -m "Brew formula update for $(PKG) version v$$new" && git push origin main; \
+	cd "$(TAP_DIR)" && git pull --rebase origin main && git add "Formula/$(FORMULA_NAME).rb" && git commit -m "Brew formula update for $(FORMULA_NAME) version v$$new" && git push origin main; \
 	echo "=========================================================="; \
 	echo "Release v$$new complete!"; \
 	echo "=========================================================="

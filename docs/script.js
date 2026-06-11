@@ -757,21 +757,41 @@
 	}
 
 	// ---------- Copy buttons ----------
+	function copyText(text, btn) {
+		var done = function() {
+			btn.classList.add('copied');
+			var orig = btn.innerHTML;
+			btn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
+			setTimeout(function() {
+				btn.classList.remove('copied');
+				btn.innerHTML = orig;
+			}, 2000);
+		};
+		if (navigator.clipboard) {
+			navigator.clipboard.writeText(text).then(done)['catch'](function() { fallback(text, done); });
+		} else {
+			fallback(text, done);
+		}
+	}
+
+	function fallback(text, done) {
+		var ta = document.createElement('textarea');
+		ta.value = text;
+		ta.style.position = 'fixed';
+		ta.style.opacity = '0';
+		document.body.appendChild(ta);
+		ta.select();
+		try { document.execCommand('copy'); done(); } catch(e) {}
+		document.body.removeChild(ta);
+	}
+
 	function setupCopyButtons() {
 		document.querySelectorAll('.copy-mini').forEach(function(btn) {
 			btn.addEventListener('click', function(e) {
 				e.stopPropagation();
 				var text = btn.getAttribute('data-copy');
 				if (!text) return;
-				navigator.clipboard.writeText(text).then(function() {
-					btn.classList.add('copied');
-					var orig = btn.innerHTML;
-					btn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
-					setTimeout(function() {
-						btn.classList.remove('copied');
-						btn.innerHTML = orig;
-					}, 2000);
-				})['catch'](function() {});
+				copyText(text, btn);
 			});
 		});
 	}
