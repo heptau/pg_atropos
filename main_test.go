@@ -8,7 +8,9 @@ import (
 )
 
 func TestFlagsHelp(t *testing.T) {
-	// Just verify the binary parses flags without panic
+	savedArgs := os.Args
+	defer func() { os.Args = savedArgs }()
+	os.Args = []string{"pg_atropos"}
 	cfg := parseFlags()
 	if cfg == nil {
 		t.Fatal("parseFlags returned nil")

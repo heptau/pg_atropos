@@ -43,8 +43,8 @@ make release    # Version prompt → build all → gh release → homebrew formu
 | `--db` | `""` | Database name to dump |
 | `--conn` | `""` | PostgreSQL connection string |
 | `--file`, `-f` | `""` | Custom-format dump file (`"-"` for stdin) |
-| `--output` | `./output` | Output directory |
-| `--mode` | `origin` | Output mode: origin\|custom |
+| `--output`, `-o` | `./output` | Output directory |
+| `--mode`, `-m` | `origin` | Output mode: origin\|custom |
 | `--clean` | `false` | Clean output directory before processing |
 | `--no-db-path` | `false` | Don't include database name in output path |
 | `--blacklist-db` | `^(template\|postgres)` | Skip databases matching pattern |

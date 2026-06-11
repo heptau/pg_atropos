@@ -63,10 +63,13 @@ pg_atropos -f dump.pgdump -output ./structure
 pg_atropos -d mydb -output ./structure
 
 # Pipe from pg_dump (no temp file needed)
-pg_dump -Fc mydb -f - | pg_atropos -f - -output ./structure
+pg_dump -Fc mydb | pg_atropos -f - -o ./structure
+
+# Pipe from a remote database via connection string
+pg_dump -Fc postgresql://user@server:port/database | pg_atropos -f - -o ./structure
 
 # Pipe from a remote database via ssh
-ssh dbserver 'pg_dump -Fc mydb -f -' | pg_atropos -f - -output ./structure
+ssh dbserver 'pg_dump -Fc mydb' | pg_atropos -f - -o ./structure
 
 # Custom mode (lowercase directories for CI)
 pg_atropos -f dump.pgdump -output ./structure -mode custom
@@ -95,8 +98,8 @@ docker run --rm -v $(pwd)/dump.pgdump:/dump.pgdump pg_atropos -f /dump.pgdump
 | `--db` | `""` | Database name to dump |
 | `--conn` | `""` | PostgreSQL connection string |
 | `--file`, `-f` | `""` | Custom-format dump file (`"-"` for stdin) |
-| `--output` | `./output` | Output directory |
-| `--mode` | `origin` | Output mode: `origin` \| `custom` |
+| `--output`, `-o` | `./output` | Output directory |
+| `--mode`, `-m` | `origin` | Output mode: `origin` \| `custom` |
 | `--clean` | `false` | Clean output directory before processing |
 | `--no-db-path` | `false` | Don't include database name in output path |
 | `--blacklist-db` | `^(template\|postgres)` | Skip databases matching pattern |

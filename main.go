@@ -213,7 +213,9 @@ func parseFlags() *Config {
 	fs.StringVar(&cfg.DumpFile, "file", "", "Custom-format dump file (\"-\" for stdin)")
 	fs.StringVar(&cfg.DumpFile, "f", "", "Shorthand for --file (e.g. -f - for stdin)")
 	fs.StringVar(&cfg.OutputDir, "output", "./output", "Output directory")
+	fs.StringVar(&cfg.OutputDir, "o", "./output", "Shorthand for --output")
 	fs.StringVar(&cfg.Mode, "mode", "origin", "Output mode: origin|custom")
+	fs.StringVar(&cfg.Mode, "m", "origin", "Shorthand for --mode")
 	fs.BoolVar(&cfg.Clean, "clean", false, "Clean output directory before processing")
 	fs.BoolVar(&cfg.NoDbPath, "no-db-path", false, "Don't include database name in output path")
 	fs.StringVar(&cfg.BlacklistDb, "blacklist-db", "^(template|postgres)", "Exclude databases matching pattern")
@@ -379,6 +381,9 @@ func writeObject(cfg *Config, dbname, curName, curType, curSchema, content strin
 		case "COMMENT", "ACL":
 			typeDir = "acl"
 			objName = objRest
+			if strings.Contains(objRest, "(") {
+				objName = funcFilename(objRest)
+			}
 		default:
 			typeDir = strings.ToLower(curType)
 		}
@@ -389,6 +394,9 @@ func writeObject(cfg *Config, dbname, curName, curType, curSchema, content strin
 			objName = funcFilename(curName)
 		case "COMMENT", "ACL":
 			objName = objRest
+			if strings.Contains(objRest, "(") {
+				objName = funcFilename(objRest)
+			}
 		}
 	}
 

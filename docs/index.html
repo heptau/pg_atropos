@@ -170,8 +170,10 @@
 					<div class="terminal-content">
 						<p class="comment" data-t="terminal.comment"># Split a dump into individual files</p>
 						<p><span class="prompt">$</span> pg_atropos <span class="flag">-f</span> dump.pgdump <span class="flag">-o</span> <span class="val">./structure</span></p>
-						<p class="comment" data-t="terminal.comment2"># Pipe from live database (no temp file)</p>
-						<p><span class="prompt">$</span> pg_dump <span class="flag">-Fc</span> mydb <span class="flag">-f</span> <span class="val">-</span> <span class="punct">|</span> pg_atropos <span class="flag">-f</span> <span class="val">-</span> <span class="flag">-o</span> <span class="val">./structure</span></p>
+						<p class="comment" data-t="terminal.comment2"># From local database</p>
+						<p><span class="prompt">$</span> pg_dump <span class="flag">-Fc</span> mydb <span class="punct">|</span> pg_atropos <span class="flag">-f</span> <span class="val">-</span> <span class="flag">-o</span> <span class="val">./structure</span></p>
+						<p class="comment" data-t="terminal.comment3"># From remote server via connection string</p>
+						<p><span class="prompt">$</span> pg_dump <span class="flag">-Fc</span> postgresql://user@host:5432/db <span class="punct">|</span> pg_atropos <span class="flag">-f</span> <span class="val">-</span> <span class="flag">-o</span> <span class="val">./structure</span></p>
 						<p class="success" data-t="terminal.success">✓ Extracted 24 objects to ./structure<span class="cursor">▌</span></p>
 					</div>
 				</div>
@@ -303,9 +305,9 @@
 						<tbody>
 							<tr><td><code>--db</code></td><td><code>""</code></td><td data-t="flags.db">Database name to dump</td></tr>
 							<tr><td><code>--conn</code></td><td><code>""</code></td><td data-t="flags.conn">PostgreSQL connection string</td></tr>
-							<tr><td><code>--file</code></td><td><code>""</code></td><td data-t="flags.file">Custom-format dump file (<code>"-"</code> for stdin)</td></tr>
-							<tr><td><code>--output</code></td><td><code>./output</code></td><td data-t="flags.output">Output directory</td></tr>
-							<tr><td><code>--mode</code></td><td><code>origin</code></td><td data-t="flags.mode">Output mode: <code>origin</code> | <code>custom</code></td></tr>
+							<tr><td><code>--file</code>, <code>-f</code></td><td><code>""</code></td><td data-t="flags.file">Custom-format dump file (<code>"-"</code> for stdin)</td></tr>
+							<tr><td><code>--output</code>, <code>-o</code></td><td><code>./output</code></td><td data-t="flags.output">Output directory</td></tr>
+							<tr><td><code>--mode</code>, <code>-m</code></td><td><code>origin</code></td><td data-t="flags.mode">Output mode: <code>origin</code> | <code>custom</code></td></tr>
 							<tr><td><code>--clean</code></td><td><code>false</code></td><td data-t="flags.clean">Clean output directory before processing</td></tr>
 							<tr><td><code>--no-db-path</code></td><td><code>false</code></td><td data-t="flags.nodbpath">Don't include database name in output path</td></tr>
 							<tr><td><code>--blacklist-db</code></td><td><code>^(template|postgres)</code></td><td data-t="flags.blacklist">Skip databases matching pattern</td></tr>
@@ -342,10 +344,19 @@
 					</div>
 					<div class="code-inline">
 						<div class="code-inner">
-							<p class="comment" data-t="usage.ex3_comment"># Custom mode (lowercase directories for CI)</p>
-							<p><span class="prompt">$</span> pg_atropos <span class="flag">-f</span> dump.pgdump <span class="flag">-o</span> <span class="val">./structure</span> <span class="flag">-mode</span> <span class="val">custom</span></p>
+							<p class="comment" data-t="usage.ex4_comment"># Pipe from remote database via connection string</p>
+							<p><span class="prompt">$</span> pg_dump <span class="flag">-Fc</span> postgresql://user@host:5432/db <span class="punct">|</span> pg_atropos <span class="flag">-f</span> <span class="val">-</span> <span class="flag">-o</span> <span class="val">./structure</span></p>
 						</div>
-						<button class="copy-mini" aria-label="Copy command" data-copy="pg_atropos -f dump.pgdump -o ./structure -mode custom">
+						<button class="copy-mini" aria-label="Copy command" data-copy="pg_dump -Fc postgresql://user@host:5432/db | pg_atropos -f - -o ./structure">
+							<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+						</button>
+					</div>
+					<div class="code-inline">
+						<div class="code-inner">
+							<p class="comment" data-t="usage.ex3_comment"># Custom mode (lowercase directories for CI)</p>
+							<p><span class="prompt">$</span> pg_atropos <span class="flag">-f</span> dump.pgdump <span class="flag">-o</span> <span class="val">./structure</span> <span class="flag">-m</span> <span class="val">custom</span></p>
+						</div>
+						<button class="copy-mini" aria-label="Copy command" data-copy="pg_atropos -f dump.pgdump -o ./structure -m custom">
 							<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
 						</button>
 					</div>
@@ -433,6 +444,16 @@
 		</footer>
 	</div>
 
+	<script src="lang/cs.js"></script>
+	<script src="lang/en.js"></script>
+	<script src="lang/es.js"></script>
+	<script src="lang/fr.js"></script>
+	<script src="lang/de.js"></script>
+	<script src="lang/it.js"></script>
+	<script src="lang/pt.js"></script>
+	<script src="lang/pl.js"></script>
+	<script src="lang/el.js"></script>
+	<script src="lang/uk.js"></script>
 	<script src="script.js"></script>
 </body>
 </html>
