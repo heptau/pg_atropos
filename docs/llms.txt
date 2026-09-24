@@ -1,0 +1,38 @@
+# pg_atropos
+
+> Split PostgreSQL custom-format (`pg_dump -Fc`) dumps into individual files organized for Git versioning.
+
+pg_atropos is a CLI tool written in Go that takes a single PostgreSQL custom-format dump and cuts it into one file per database object (tables, functions, indexes, roles, …). Instead of parsing raw SQL text with brittle regexes, it pipes the dump through `pg_restore -f -` and relies on the clean `-- Name: ...; Type: ...` headers to detect object boundaries. The result is minimal merge conflicts, readable diffs and per-object Git history.
+
+## Links
+
+- [Homepage](https://pg_atropos.80.cz/)
+- [Full documentation for LLMs](https://pg_atropos.80.cz/llms-full.txt)
+- [GitHub Repository](https://github.com/heptau/pg_atropos)
+- [Installation](https://pg_atropos.80.cz/#installation)
+- [Usage & Flags](https://pg_atropos.80.cz/#usage)
+- [Output Modes](https://pg_atropos.80.cz/#modes)
+- [Releases](https://github.com/heptau/pg_atropos/releases)
+
+## Key Facts
+
+- Language: Go (standard library only, no external dependencies)
+- Requires: `pg_restore` (PostgreSQL client tools)
+- Input: custom-format dump file, stdin (`-f -`), or a live database (`--db` / `--conn`)
+- License: MIT
+- Install: `brew install heptau/tap/pg-atropos` or build from source (`make build`)
+- Platforms: macOS, Linux, Windows (amd64, arm64), Docker
+
+## Quick start
+
+```bash
+brew install heptau/tap/pg-atropos
+pg_dump -Fc mydb | pg_atropos -f - -o ./structure
+```
+
+## Typical use cases
+
+- Versioning a PostgreSQL schema in Git with one file per object
+- Code review of schema changes (diff shows only the changed object)
+- Per-object history (`git log -- TABLE/users.sql`)
+- CI/CD pipelines that deploy only changed objects

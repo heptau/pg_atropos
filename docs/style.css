@@ -131,6 +131,44 @@ header {
 	color: var(--gold);
 }
 
+.nav-icon-link {
+	background: transparent;
+	border: 1px solid var(--border);
+	color: var(--muted);
+	width: 2.5rem;
+	height: 2.5rem;
+	border-radius: 0.5rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: all 0.2s;
+}
+
+.nav-icon-link svg {
+	width: 1.125rem;
+	height: 1.125rem;
+}
+
+.nav-icon-link.nav-heart:hover {
+	border-color: #ff6ba7;
+	color: #ff6ba7;
+}
+
+.nav-icon-link.nav-star:hover {
+	border-color: #f59e0b;
+	color: #f59e0b;
+}
+
+.footer-author {
+	color: var(--gold);
+	text-decoration: none;
+	transition: color 0.2s;
+}
+
+.footer-author:hover {
+	color: var(--gold);
+}
+
 .gh-link {
 	padding: 0.4rem;
 	border-radius: 0.5rem;
@@ -822,4 +860,6 @@ footer {
 	.feature-grid, .install-grid, .modes-grid { grid-template-columns: 1fr; }
 	.table-scroll { font-size: 0.8rem; }
 	.thread-divider, .footer-thread { margin: 0 -1rem; }
+	.nav-links { gap: 0.35rem; }
+	.nav-icon-link, .lang-trigger, .theme-trigger { width: 2.25rem; height: 2.25rem; }
 }

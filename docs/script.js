@@ -62,6 +62,13 @@
 				el.innerHTML = translations[target][key];
 			}
 		});
+		document.querySelectorAll('[data-t-title]').forEach(function(el) {
+			var key = el.getAttribute('data-t-title');
+			if (translations[target] && translations[target][key]) {
+				el.setAttribute('title', translations[target][key]);
+				el.setAttribute('aria-label', translations[target][key]);
+			}
+		});
 
 		langOptions.forEach(function(opt) {
 			opt.classList.toggle('active', opt.getAttribute('data-lang-value') === selectedLang);

@@ -1,0 +1,129 @@
+# pg_atropos
+
+> Split PostgreSQL custom-format (`pg_dump -Fc`) dumps into individual files organized for Git versioning.
+
+- Homepage: https://pg_atropos.80.cz/
+- Repository: https://github.com/heptau/pg_atropos
+- License: MIT
+- Language: Go (standard library only, no external dependencies)
+- Requires: `pg_restore` (PostgreSQL client tools)
+
+## Why
+
+When a team shares a single giant SQL dump in Git, every change — adding a column, a new index, tweaking a function — creates a merge conflict across the entire file. pg_atropos splits the dump into individual objects (tables, functions, indexes, roles, …), each in its own file:
+
+- Minimal conflicts — two people can change different tables without stepping on each other
+- Clear code review — a diff shows exactly the changed object, not 500 lines of dump header
+- Readable history — `git log -- TABLE/users.sql` shows every change to that specific table
+- CI/CD friendly — deploy only the changed object, not the entire dump
+
+## How it works
+
+pg_atropos never reads the binary custom format directly. It pipes the dump through `pg_restore -f -` and parses the emitted SQL stream, detecting object boundaries from the `-- Name: ...; Type: ...` headers that pg_restore writes. This is far more robust than regex parsing of plain-text dumps, where function bodies or comments can contain text that looks like dump markers.
+
+Design properties:
+
+- Streaming parser — no temporary SQL files, no memory issues on large dumps
+- Stdin support — `pg_dump -Fc ... | pg_atropos -f -` works without an intermediate file
+- Single static binary, no runtime dependencies other than `pg_restore`
+
+## Installation
+
+### Homebrew (recommended, macOS and Linux)
+
+```bash
+brew install heptau/tap/pg-atropos
+```
+
+### From source
+
+```bash
+git clone https://github.com/heptau/pg_atropos.git
+cd pg_atropos && make build
+```
+
+### Docker
+
+```bash
+docker build -t pg_atropos .
+docker run --rm -v $(pwd)/dump.pgdump:/dump.pgdump pg_atropos -f /dump.pgdump
+```
+
+Prebuilt binaries for darwin/linux/windows × amd64/arm64 are published on GitHub Releases.
+
+## Usage
+
+```bash
+# From a custom-format dump file
+pg_atropos -f dump.pgdump -o ./structure
+
+# From a live database (auto-dump via pg_dump)
+pg_atropos --db mydb -o ./structure
+
+# Pipe from pg_dump (no temp file needed)
+pg_dump -Fc mydb | pg_atropos -f - -o ./structure
+
+# Pipe from a remote database via connection string
+pg_dump -Fc postgresql://user@server:port/database | pg_atropos -f - -o ./structure
+
+# Pipe from a remote database via ssh
+ssh dbserver 'pg_dump -Fc mydb' | pg_atropos -f - -o ./structure
+
+# Custom mode (lowercase directories for CI)
+pg_atropos -f dump.pgdump -o ./structure -m custom
+
+# Preview without writing files
+pg_atropos -f dump.pgdump --dry-run
+```
+
+## Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--db` | `""` | Database name to dump |
+| `--conn` | `""` | PostgreSQL connection string |
+| `--file`, `-f` | `""` | Custom-format dump file (`"-"` for stdin) |
+| `--output`, `-o` | `./output` | Output directory |
+| `--mode`, `-m` | `origin` | Output mode: `origin` \| `custom` |
+| `--clean` | `false` | Clean output directory before processing |
+| `--no-db-path` | `false` | Don't include database name in output path |
+| `--blacklist-db` | `^(template\|postgres)` | Skip databases matching pattern |
+| `--whitelist-db` | `""` | Only include databases matching pattern |
+| `--exclude-obj` | `""` | Exclude object types matching pattern |
+| `--acl-files` | `false` | Save ACLs to separate `.acl.sql` files |
+| `--move-roles` | `false` | Move role files under database directory |
+| `--dry-run` | `false` | Print what would be extracted without writing |
+| `--quiet` | `false` | Suppress informational output |
+| `--version` | — | Print version and exit |
+
+## Output modes
+
+### origin (default)
+
+Mirrors the dump structure exactly — each object type gets its own directory (`TABLE/`, `FUNCTION/`, `INDEX/`, …). Ideal for inspection and manual browsing.
+
+### custom
+
+Lowercase directories (`table/`, `function/`, …). Better suited for CI / automation workflows. Indexes, constraints and triggers are not merged into their parent table files, because pg_restore headers do not carry the parent table name.
+
+## Limitations
+
+- INDEX / CONSTRAINT / TRIGGER merging into table files is not supported in custom mode.
+- Object names with spaces or special characters may not round-trip.
+
+## Performance
+
+Tested on ~150 objects / 2226 lines of SQL output:
+
+| Tool | Avg time | Relative |
+|------|----------|----------|
+| pg_atropos (Go) | 0.044 s | 1× |
+| pgdump_splitter (Go) | 0.109 s | 2.5× slower |
+
+## The name
+
+In Greek mythology, the three Moirai (Fates) spun the thread of life, measured it, and finally Atropos (the Inevitable) cut it with her shears. pg_atropos does the same: it takes a giant `pg_dump` file and snips it into small, manageable threads (files) ready for Git.
+
+## Inspiration
+
+Inspired by michal-bartak/pgdump_splitter (https://github.com/michal-bartak/pgdump_splitter), which parses plain `pg_dump` text output. pg_atropos uses the custom-format dump plus the `pg_restore -f -` pipe instead, which yields simpler, faster and more robust parsing.
