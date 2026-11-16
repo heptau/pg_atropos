@@ -26,7 +26,7 @@ make clean      # Remove build artifacts
 ```
 
 Tests use `--test-sql` flag to bypass `pg_restore` — no PostgreSQL needed
-for unit tests. Coverage is ~73%; the uncovered paths (`main()`, 
+for unit tests. Coverage is ~75%; the uncovered paths (`main()`, 
 `detectDbname()`, `checkDep()` error paths) require `pg_dump`/`pg_restore`.
 
 ## Code style

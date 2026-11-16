@@ -299,8 +299,12 @@ func TestParseAndWriteNoDbPath(t *testing.T) {
 }
 
 func TestVersionConstant(t *testing.T) {
-	if version != "1.0.0" {
-		t.Errorf("expected version 1.0.0, got %s", version)
+	data, err := os.ReadFile("VERSION")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := strings.TrimSpace(string(data)); version != want {
+		t.Errorf("version %s does not match VERSION file (%s)", version, want)
 	}
 }
 
@@ -933,5 +937,152 @@ func TestMainStdinWithDbFlagNoDbPath(t *testing.T) {
 	// But files should exist directly under output
 	if _, err := os.Stat(filepath.Join(dir, "public/TABLE/users.sql")); err != nil {
 		t.Errorf("expected file without db path: %v", err)
+	}
+}
+
+// realisticFixture mimics real pg_restore output: TABLE DATA headers use the
+// "Data for Name:" form, names may contain "/", and lines may be very long.
+func realisticFixture() string {
+	return `--
+-- PostgreSQL database dump
+--
+
+--
+-- Name: /; Type: OPERATOR; Schema: public; Owner: postgres
+--
+
+CREATE OPERATOR public./ (FUNCTION = textcat);
+
+
+--
+-- Name: users id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT 1;
+
+
+--
+-- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.users (id, big) FROM stdin;
+1	` + strings.Repeat("x", 3*1024*1024) + `
+\.
+
+
+--
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+-- Name: fake; Type: TABLE; Schema: public; Owner: postgres
+
+
+--
+-- PostgreSQL database dump complete
+--
+`
+}
+
+func TestParseRealisticDump(t *testing.T) {
+	dir := t.TempDir()
+	cfg := &Config{OutputDir: dir, Mode: "origin", Quiet: true}
+
+	total := parseAndWrite(strings.NewReader(realisticFixture()), cfg, "")
+	if total != 3 {
+		t.Fatalf("expected 3 objects, got %d", total)
+	}
+
+	// TABLE DATA must not leak into the preceding object, and the "--"
+	// comment frame must not end up in the file.
+	got, err := os.ReadFile(filepath.Join(dir, "public", "DEFAULT", "users id.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT 1;\n"; string(got) != want {
+		t.Errorf("DEFAULT file = %q, want %q", got, want)
+	}
+
+	// Objects after a line longer than 1 MB must still be extracted, and a
+	// header-like line inside a body must not start a new object.
+	got, err = os.ReadFile(filepath.Join(dir, "public", "CONSTRAINT", "users users_pkey.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), "-- Name: fake;") {
+		t.Errorf("header-like body line was lost: %q", got)
+	}
+
+	// "/" in an object name must not create a subdirectory.
+	if _, err := os.Stat(filepath.Join(dir, "public", "OPERATOR", "%2F.sql")); err != nil {
+		t.Errorf("operator file not found: %v", err)
+	}
+}
+
+func TestRerunDoesNotDuplicate(t *testing.T) {
+	dir := t.TempDir()
+	cfg := &Config{OutputDir: dir, Mode: "origin", Quiet: true}
+	path := filepath.Join(dir, "testdb", "public", "TABLE", "users.sql")
+
+	parseAndWrite(strings.NewReader(fullRestoreFixture), cfg, "testdb")
+	first, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A new process starts with an empty write-tracking map.
+	filesWritten = make(map[string]bool)
+	parseAndWrite(strings.NewReader(fullRestoreFixture), cfg, "testdb")
+	second, _ := os.ReadFile(path)
+	if string(first) != string(second) {
+		t.Errorf("second run changed file content:\n%s", second)
+	}
+}
+
+func TestSafeNameAndFuncFilename(t *testing.T) {
+	for in, want := range map[string]string{"a/b": "a%2Fb", "..": "%2E%2E", "users": "users"} {
+		if got := safeName(in); got != want {
+			t.Errorf("safeName(%q) = %q, want %q", in, got, want)
+		}
+	}
+	// Must not panic on an unbalanced parenthesis.
+	if got := funcFilename("odd("); got != "odd(" {
+		t.Errorf("funcFilename(odd() = %q", got)
+	}
+}
+
+func TestParseFlagsHelpAndUnknown(t *testing.T) {
+	savedArgs := os.Args
+	savedExit := osExit
+	defer func() { os.Args = savedArgs; osExit = savedExit }()
+
+	for _, tt := range []struct {
+		args []string
+		want int
+	}{
+		{[]string{"pg_atropos", "-h"}, 0},
+		{[]string{"pg_atropos", "--bogus"}, 2},
+		{[]string{"pg_atropos", "--exclude-obj", "("}, 1},
+	} {
+		exitCode := -1
+		osExit = func(code int) { exitCode = code; panic("exit") }
+		os.Args = tt.args
+		func() {
+			defer func() { _ = recover() }()
+			parseFlags()
+		}()
+		if exitCode != tt.want {
+			t.Errorf("%v: exit code %d, want %d", tt.args, exitCode, tt.want)
+		}
+	}
+}
+
+func TestParseFlagsShortDb(t *testing.T) {
+	savedArgs := os.Args
+	defer func() { os.Args = savedArgs }()
+	os.Args = []string{"pg_atropos", "-d", "mydb"}
+	if cfg := parseFlags(); cfg.DBName != "mydb" {
+		t.Errorf("-d not parsed, DBName = %q", cfg.DBName)
 	}
 }

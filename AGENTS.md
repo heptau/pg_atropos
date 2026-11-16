@@ -40,8 +40,8 @@ make release    # Version prompt → build all → gh release → homebrew formu
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--db` | `""` | Database name to dump |
-| `--conn` | `""` | PostgreSQL connection string |
+| `--db`, `-d` | `""` | Database name to dump |
+| `--conn` | `""` | PostgreSQL connection string or URI to dump (passed to `pg_dump -d`) |
 | `--file`, `-f` | `""` | Custom-format dump file (`"-"` for stdin) |
 | `--output`, `-o` | `./output` | Output directory |
 | `--mode`, `-m` | `origin` | Output mode: origin\|custom |
@@ -60,8 +60,8 @@ make release    # Version prompt → build all → gh release → homebrew formu
 ## Testing
 
 ```bash
-make test       # 27 unit tests (no PostgreSQL required)
-make coverage   # 73% coverage (main() integration paths need pg_restore)
+make test       # 37 unit tests (no PostgreSQL required)
+make coverage   # 75% coverage (main() integration paths need pg_restore)
 ```
 
 Tests use `--test-sql` + embedded SQL fixture to bypass pg_restore, and

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/md5"
 	"encoding/hex"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -11,11 +12,21 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 )
 
-var version = "1.0.0"
+var version = "1.1.0"
 var osExit = os.Exit
+
+// tmpCleanup removes temporary files; it is run by exit() because osExit
+// does not run deferred functions.
+var tmpCleanup = func() {}
+
+func exit(code int) {
+	tmpCleanup()
+	osExit(code)
+}
 
 // ---------- Config ----------
 
@@ -51,7 +62,7 @@ func log(cfg *Config, format string, args ...interface{}) {
 func checkDep(name string) {
 	if _, err := exec.LookPath(name); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: required command not found: %s\n", name)
-		osExit(1)
+		exit(1)
 	}
 }
 
@@ -64,56 +75,38 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Dry-run mode: no files will be written")
 	}
 
-	if cfg.DumpFile == "" && cfg.DBName == "" && cfg.TestSQL == "" {
-		fmt.Fprintln(os.Stderr, "Error: either --file (or --file -) or --db is required")
-		osExit(1)
+	if cfg.DumpFile == "" && cfg.DBName == "" && cfg.Conn == "" && cfg.TestSQL == "" {
+		fmt.Fprintln(os.Stderr, "Error: one of --file (or --file -), --db or --conn is required")
+		exit(1)
 	}
 
-	// Internal: detect dbname from dump if not given
 	dbname := cfg.DBName
-
-	if cfg.Clean && !cfg.DryRun {
-		if err := os.RemoveAll(cfg.OutputDir); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to clean %s: %v\n", cfg.OutputDir, err)
-		}
-		log(cfg, "Cleaned output directory: %s", cfg.OutputDir)
-	}
-	if !cfg.DryRun {
-		if err := os.MkdirAll(cfg.OutputDir, 0755); err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating output directory: %v\n", err)
-			os.Exit(1)
-		}
-	}
 
 	// Create dump if needed (skip for stdin and test-sql mode)
 	isStdin := cfg.DumpFile == "-"
-	tmpDir := ""
 	dumpFile := cfg.DumpFile
-	if cfg.TestSQL != "" || isStdin {
-		// no dump needed
-	} else if dumpFile == "" {
+	if cfg.TestSQL == "" && !isStdin && dumpFile == "" {
 		checkDep("pg_dump")
-		var err error
-		tmpDir, err = os.MkdirTemp("", "pg_atropos_*")
+		tmpDir, err := os.MkdirTemp("", "pg_atropos_*")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating temp dir: %v\n", err)
-			osExit(1)
+			exit(1)
 		}
-		defer func() { _ = os.RemoveAll(tmpDir) }()
+		tmpCleanup = func() { _ = os.RemoveAll(tmpDir) }
+		defer func() { tmpCleanup(); tmpCleanup = func() {} }()
 		dumpFile = filepath.Join(tmpDir, "dump.pgdump")
 
-		log(cfg, "Creating dump of database: %s", cfg.DBName)
-		args := []string{"-Fc", "-f", dumpFile}
+		// pg_dump accepts a connection string or URI as the database name.
+		target := cfg.DBName
 		if cfg.Conn != "" {
-			args = append(args, strings.Fields(cfg.Conn)...)
-		} else {
-			args = append(args, "-d", cfg.DBName)
+			target = cfg.Conn
 		}
-		cmd := exec.Command("pg_dump", args...)
+		log(cfg, "Creating dump of database: %s", orUnknown(cfg.DBName))
+		cmd := exec.Command("pg_dump", "-Fc", "-f", dumpFile, "-d", target)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "pg_dump failed: %v\n%s\n", err, string(out))
-			osExit(1)
+			exit(1)
 		}
 		log(cfg, "Dump created: %s", dumpFile)
 	}
@@ -132,16 +125,30 @@ func main() {
 		return
 	}
 
+	if cfg.Clean && !cfg.DryRun {
+		if err := cleanOutputDir(cfg.OutputDir); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to clean %s: %v\n", cfg.OutputDir, err)
+			exit(1)
+		}
+		log(cfg, "Cleaned output directory: %s", cfg.OutputDir)
+	}
+	if !cfg.DryRun {
+		if err := os.MkdirAll(cfg.OutputDir, 0755); err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating output directory: %v\n", err)
+			exit(1)
+		}
+	}
+
 	// Source of SQL: pg_restore pipe or test SQL file
-	var reader io.Reader
+	var total int
 	if cfg.TestSQL != "" {
 		f, err := os.Open(cfg.TestSQL)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error opening test SQL file: %v\n", err)
-			osExit(1)
+			exit(1)
 		}
-		defer func() { _ = f.Close() }()
-		reader = f
+		total = parseAndWrite(f, cfg, dbname)
+		_ = f.Close()
 	} else {
 		checkDep("pg_restore")
 		args := []string{"-f", "-"}
@@ -155,23 +162,19 @@ func main() {
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating pipe: %v\n", err)
-			osExit(1)
+			exit(1)
 		}
 		cmd.Stderr = os.Stderr
 		if err := cmd.Start(); err != nil {
 			fmt.Fprintf(os.Stderr, "pg_restore failed: %v\n", err)
-			osExit(1)
+			exit(1)
 		}
-		reader = stdout
-		defer func() {
-			if err := cmd.Wait(); err != nil {
-				fmt.Fprintf(os.Stderr, "pg_restore failed: %v\n", err)
-				osExit(1)
-			}
-		}()
+		total = parseAndWrite(stdout, cfg, dbname)
+		if err := cmd.Wait(); err != nil {
+			fmt.Fprintf(os.Stderr, "pg_restore failed: %v\n", err)
+			exit(1)
+		}
 	}
-
-	total := parseAndWrite(reader, cfg, dbname)
 
 	if cfg.DryRun {
 		fmt.Fprintf(os.Stderr, "Dry-run: would extract %d objects to %s\n", total, cfg.OutputDir)
@@ -179,6 +182,25 @@ func main() {
 		log(cfg, "Extracted %d objects to: %s", total, cfg.OutputDir)
 		log(cfg, "Done.")
 	}
+}
+
+// cleanOutputDir removes the output directory, refusing obviously
+// dangerous targets (filesystem root, home directory, working directory).
+func cleanOutputDir(dir string) error {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return err
+	}
+	if abs == filepath.VolumeName(abs)+string(filepath.Separator) {
+		return fmt.Errorf("refusing to remove filesystem root")
+	}
+	if home, err := os.UserHomeDir(); err == nil && abs == filepath.Clean(home) {
+		return fmt.Errorf("refusing to remove home directory")
+	}
+	if wd, err := os.Getwd(); err == nil && abs == wd {
+		return fmt.Errorf("refusing to remove current working directory")
+	}
+	return os.RemoveAll(abs)
 }
 
 func orUnknown(s string) string {
@@ -209,6 +231,7 @@ func parseFlags() *Config {
 
 	fs := flag.NewFlagSet("pg_atropos", flag.ContinueOnError)
 	fs.StringVar(&cfg.DBName, "db", "", "Database name to dump")
+	fs.StringVar(&cfg.DBName, "d", "", "Shorthand for --db")
 	fs.StringVar(&cfg.Conn, "conn", "", "PostgreSQL connection string")
 	fs.StringVar(&cfg.DumpFile, "file", "", "Custom-format dump file (\"-\" for stdin)")
 	fs.StringVar(&cfg.DumpFile, "f", "", "Shorthand for --file (e.g. -f - for stdin)")
@@ -227,23 +250,45 @@ func parseFlags() *Config {
 	fs.BoolVar(&cfg.Version, "version", false, "Print version and exit")
 	fs.BoolVar(&cfg.DryRun, "dry-run", false, "Print what would be extracted without writing")
 
-	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "pg_atropos v%s - Split PostgreSQL custom-format dumps into organized files\n\n", version)
-		fmt.Fprintf(os.Stderr, "Usage:\n  pg_atropos [options]\n\n")
-		fmt.Fprintf(os.Stderr, "Options:\n")
+	usage := func(w io.Writer) {
+		_, _ = fmt.Fprintf(w, "pg_atropos v%s - Split PostgreSQL custom-format dumps into organized files\n\n", version)
+		_, _ = fmt.Fprintf(w, "Usage:\n  pg_atropos [options]\n\n")
+		_, _ = fmt.Fprintf(w, "Options:\n")
+		fs.SetOutput(w)
 		fs.PrintDefaults()
 	}
+	fs.SetOutput(io.Discard)
+	fs.Usage = func() {}
 
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			usage(os.Stdout)
+			exit(0)
+		}
+		fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
+		usage(os.Stderr)
+		exit(2)
+	}
 
 	if cfg.Version {
-		fmt.Fprintf(os.Stderr, "pg_atropos v%s\n", version)
-		osExit(0)
+		fmt.Printf("pg_atropos v%s\n", version)
+		exit(0)
 	}
 
 	if cfg.Mode != "origin" && cfg.Mode != "custom" {
 		fmt.Fprintf(os.Stderr, "Error: mode must be 'origin' or 'custom'\n")
-		osExit(1)
+		exit(1)
+	}
+
+	for name, pattern := range map[string]string{
+		"blacklist-db": cfg.BlacklistDb,
+		"whitelist-db": cfg.WhitelistDb,
+		"exclude-obj":  cfg.ExcludeObj,
+	} {
+		if _, err := regexp.Compile(pattern); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: invalid --%s pattern: %v\n", name, err)
+			exit(1)
+		}
 	}
 
 	return cfg
@@ -290,7 +335,7 @@ func checkDbFilter(dbname, blacklist, whitelist string) bool {
 
 // ---------- Header parsing ----------
 
-var reHeader = regexp.MustCompile(`^-- Name: (.*?); Type: (.*?); Schema: (.*?); Owner: `)
+var reHeader = regexp.MustCompile(`^-- (?:Data for )?Name: (.*?); Type: (.*?); Schema: (.*?); Owner: `)
 
 func parseHeader(line string) (name, objType, schema string) {
 	m := reHeader.FindStringSubmatch(line)
@@ -305,13 +350,47 @@ func parseHeader(line string) (name, objType, schema string) {
 
 // ---------- Object writer ----------
 
+var reCache = make(map[string]*regexp.Regexp)
+
+// compileCached compiles a pattern once; invalid patterns yield nil.
+func compileCached(pattern string) *regexp.Regexp {
+	re, ok := reCache[pattern]
+	if !ok {
+		re, _ = regexp.Compile(pattern)
+		reCache[pattern] = re
+	}
+	return re
+}
+
+// safeName makes an object name usable as a single path component, so that
+// names such as the "/" operator or "a/b" cannot escape their directory.
+func safeName(s string) string {
+	bad := `/\`
+	if runtime.GOOS == "windows" {
+		bad += `:*?"<>|`
+	}
+	var b strings.Builder
+	for _, r := range s {
+		if r < 0x20 || strings.ContainsRune(bad, r) {
+			fmt.Fprintf(&b, "%%%02X", r)
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	out := b.String()
+	if out == "." || out == ".." {
+		out = strings.ReplaceAll(out, ".", "%2E")
+	}
+	return out
+}
+
 var dirsCreated = make(map[string]bool)
 
 func mkdirCached(dir string) {
 	if !dirsCreated[dir] {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating directory %s: %v\n", dir, err)
-			osExit(1)
+			exit(1)
 		}
 		dirsCreated[dir] = true
 	}
@@ -324,7 +403,7 @@ func writeObject(cfg *Config, dbname, curName, curType, curSchema, content strin
 
 	// Exclude filter
 	if cfg.ExcludeObj != "" {
-		if matched, _ := regexp.MatchString(cfg.ExcludeObj, curType); matched {
+		if re := compileCached(cfg.ExcludeObj); re != nil && re.MatchString(curType) {
 			return
 		}
 	}
@@ -348,13 +427,13 @@ func writeObject(cfg *Config, dbname, curName, curType, curSchema, content strin
 	// Build db path component
 	dbpart := ""
 	if dbname != "" && !cfg.NoDbPath {
-		dbpart = dbname + "/"
+		dbpart = safeName(dbname) + "/"
 	}
 
 	// SCHEMA special case
 	if curType == "SCHEMA" {
-		dir := filepath.Join(cfg.OutputDir, dbpart+curName)
-		fpath := filepath.Join(dir, curName+".sql")
+		dir := filepath.Join(cfg.OutputDir, dbpart+safeName(curName))
+		fpath := filepath.Join(dir, safeName(curName)+".sql")
 		if !cfg.DryRun {
 			mkdirCached(dir)
 			appendToFile(fpath, content)
@@ -405,7 +484,8 @@ func writeObject(cfg *Config, dbname, curName, curType, curSchema, content strin
 	}
 
 	// Schema dir: schema "-" objects with --move-roles skip the schema dir
-	schemaDir := curSchema
+	objName = safeName(objName)
+	schemaDir := safeName(curSchema)
 	if cfg.MoveRoles && schemaDir == "-" {
 		schemaDir = ""
 	}
@@ -428,27 +508,41 @@ func writeObject(cfg *Config, dbname, curName, curType, curSchema, content strin
 	}
 }
 
+// filesWritten tracks files written during this run: the first write
+// truncates leftovers from a previous run, later writes append.
+var filesWritten = make(map[string]bool)
+
 func appendToFile(path, content string) {
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0640)
+	flags := os.O_WRONLY | os.O_CREATE | os.O_TRUNC
+	appending := filesWritten[path]
+	if appending {
+		flags = os.O_WRONLY | os.O_CREATE | os.O_APPEND
+	}
+	f, err := os.OpenFile(path, flags, 0640)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error opening file %s: %v\n", path, err)
-		osExit(1)
+		exit(1)
 	}
-	defer func() { _ = f.Close() }()
-	info, _ := f.Stat()
-	if info != nil && info.Size() > 0 {
+	defer func() {
+		if err := f.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing to %s: %v\n", path, err)
+			exit(1)
+		}
+	}()
+	filesWritten[path] = true
+	if appending {
 		if _, err := f.WriteString("\n"); err != nil {
 			fmt.Fprintf(os.Stderr, "Error writing to %s: %v\n", path, err)
-			osExit(1)
+			exit(1)
 		}
 	}
 	if _, err := f.WriteString(content); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing to %s: %v\n", path, err)
-		osExit(1)
+		exit(1)
 	}
 	if _, err := f.WriteString("\n"); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing to %s: %v\n", path, err)
-		osExit(1)
+		exit(1)
 	}
 }
 
@@ -468,51 +562,90 @@ func funcFilename(fname string) string {
 	if parenIdx < 0 {
 		return fname
 	}
+	endIdx := strings.LastIndex(fname, ")")
+	if endIdx < parenIdx {
+		return fname
+	}
 	baseName := fname[:parenIdx]
-	argsPart := fname[parenIdx+1 : len(fname)-1] // strip parens
+	argsPart := fname[parenIdx+1 : endIdx] // strip parens
 	hash := funcArgsHash(argsPart)
 	return baseName + "-" + hash
 }
 
 // ---------- Parser ----------
 
+// cleanContent strips the comment frame ("--") that precedes the next
+// header, plus surrounding blank lines.
+func cleanContent(s string) string {
+	s = strings.TrimRight(s, "\n\t ")
+	if s == "--" {
+		return ""
+	}
+	s = strings.TrimSuffix(s, "\n--")
+	return strings.TrimRight(s, "\n\t ")
+}
+
 func parseAndWrite(rc io.Reader, cfg *Config, dbname string) int {
-	scanner := bufio.NewScanner(rc)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+	// bufio.Reader (not Scanner): COPY data lines can be arbitrarily long.
+	reader := bufio.NewReaderSize(rc, 1024*1024)
 
 	var curName, curType, curSchema string
 	var content strings.Builder
 	total := 0
 	inHeader := true
 	skipObj := false
+	afterHeader := false
+	prevLine := ""
 
-	for scanner.Scan() {
-		line := scanner.Text()
+	flush := func() {
+		if curType != "" && !skipObj {
+			writeObject(cfg, dbname, curName, curType, curSchema, cleanContent(content.String()), &total)
+		}
+	}
 
-		// Check for header
-		if name, typ, schema := parseHeader(line); name != "" {
-			// Write previous object
-			if curType != "" && !skipObj {
-				writeObject(cfg, dbname, curName, curType, curSchema, content.String(), &total)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			fmt.Fprintf(os.Stderr, "Error reading SQL stream: %v\n", err)
+			exit(1)
+		}
+		if err == io.EOF && line == "" {
+			break
+		}
+		line = strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
+		prev := prevLine
+		prevLine = line
+
+		// Check for header (always framed by a preceding "--" line)
+		if prev == "--" {
+			if name, typ, schema := parseHeader(line); name != "" {
+				flush()
+				curName = name
+				curType = typ
+				curSchema = schema
+				content.Reset()
+				inHeader = false
+				afterHeader = true
+				skipObj = (curType == "TABLE DATA")
+				continue
 			}
-			curName = name
-			curType = typ
-			curSchema = schema
-			content.Reset()
-			inHeader = false
-			skipObj = (curType == "TABLE DATA")
-			continue
 		}
 
 		if inHeader {
 			continue
 		}
 
+		// Closing "--" of the header comment frame
+		if afterHeader {
+			afterHeader = false
+			if line == "--" {
+				continue
+			}
+		}
+
 		// Check for end marker
 		if strings.HasPrefix(line, "-- PostgreSQL database dump complete") {
-			if curType != "" && !skipObj {
-				writeObject(cfg, dbname, curName, curType, curSchema, content.String(), &total)
-			}
+			flush()
 			curType = ""
 			skipObj = false
 			continue
@@ -532,9 +665,7 @@ func parseAndWrite(rc io.Reader, cfg *Config, dbname string) int {
 	}
 
 	// Flush last object
-	if curType != "" && !skipObj {
-		writeObject(cfg, dbname, curName, curType, curSchema, content.String(), &total)
-	}
+	flush()
 
 	return total
 }

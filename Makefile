@@ -56,7 +56,7 @@ LINT := $(shell command -v golangci-lint 2>/dev/null || echo "$(shell go env GOP
 
 lint:
 	@if ! test -x "$(LINT)" > /dev/null 2>&1; then \
-		echo "Install golangci-lint: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; \
+		echo "Install golangci-lint: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest"; \
 		exit 1; \
 	fi
 	"$(LINT)" run ./...
